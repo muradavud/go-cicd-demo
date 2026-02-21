@@ -1,60 +1,87 @@
-# go-cicd-demo
+# envcheck
 
-A minimal Go CLI that prints a greeting. Used to demonstrate CI/CD with GitHub Actions.
+`envcheck` is an infrastructure-focused Go CLI for CI/CD preflight validation.
 
-## The Go Project
+It validates required environment variables and checks external dependencies (HTTP endpoints and TCP services) before deploy steps run.
 
-- **main.go** — Defines `Greet(name string)` and a `main` that prints the greeting (or "Hello, World!" if no argument is given).
-- **main_test.go** — Unit tests for `Greet`.
+## Why this project
+
+- Reproducible automation-first CLI design.
+- CI-friendly exit codes (`0` success, `1` failed checks, `2` usage/runtime errors).
+- Single release binary artifact for Linux amd64.
+- Build-time version metadata injected with `-ldflags`.
+
+## Project structure
+
+```text
+cmd/envcheck/main.go      # CLI flags, output formatting, exit codes
+internal/checks/env.go    # required environment validation
+internal/checks/http.go   # HTTP health checks with timeout
+internal/checks/tcp.go    # TCP connectivity checks with timeout
+internal/version/version.go
+```
+
+## Usage
 
 Run locally:
 
 ```bash
-go build .
-./go-cicd-demo
-./go-cicd-demo Alice
 go test ./...
+go build -o envcheck ./cmd/envcheck
+./envcheck --required-env DB_HOST,DB_PORT --check-http https://example.com/health --check-tcp 127.0.0.1:5432
 ```
 
-## CI Workflow
+JSON output for machine consumers:
 
-**File:** `.github/workflows/ci.yml`
+```bash
+./envcheck --required-env DB_HOST --json
+```
 
-**Trigger:** Every push to the `main` branch.
+Show build version:
 
-**Steps:**
+```bash
+./envcheck --version
+```
 
-1. Check out the repository.
-2. Set up Go 1.25 (using `actions/setup-go@v5`).
-3. Run `go build ./...`.
-4. Run `go test ./...`.
+Repeatable checks and custom timeout:
 
-If any step fails, the workflow fails and the push is not considered verified.
+```bash
+./envcheck \
+  --check-http https://example.com/health \
+  --check-http https://example.com/ready \
+  --check-tcp 127.0.0.1:5432 \
+  --timeout 3s
+```
 
-## CD Workflow
+## CI workflow
 
-**File:** `.github/workflows/cd.yml`
+**File:** `.github/workflows/ci.yml`  
+**Trigger:** push to `main`
 
-**Trigger:** When a GitHub Release is **created** (e.g. via the repo’s Releases page or `gh release create`).
+CI executes:
 
-**Steps:**
+1. `go build ./...`
+2. `go test ./...`
 
-1. Check out the repository.
-2. Set up Go 1.25.
-3. Lint the code with **golangci-lint** (`golangci/golangci-lint-action@v6`).
-4. Run `go test ./...`.
-5. Build a Linux amd64 binary: `go build -o go-cicd-demo .` (with `GOOS=linux`, `GOARCH=amd64`).
-6. Upload the binary to the newly created release using **softprops/action-gh-release@v2**.
+## CD workflow
 
-The workflow has `contents: write` so `GITHUB_TOKEN` can attach the binary to the release.
+**File:** `.github/workflows/cd.yml`  
+**Trigger:** GitHub Release created
 
-**Creating a release:** In the repo, go to **Releases** → **Create a new release**, choose a tag (e.g. `v1.0.0`), publish the release. The CD workflow runs and attaches the `go-cicd-demo` binary to that release.
+CD executes:
 
-## GitHub Actions Used
+1. `golangci-lint`
+2. `go test ./...`
+3. Build `envcheck-linux-amd64` from `./cmd/envcheck`
+4. Inject version, commit, and build timestamp via `-ldflags`
+5. Upload the binary to the release with `softprops/action-gh-release`
 
-| Action | Purpose |
-|--------|---------|
-| [actions/checkout@v4](https://github.com/actions/checkout) | Check out the repository. |
-| [actions/setup-go@v5](https://github.com/actions/setup-go) | Install and cache a Go toolchain. |
-| [golangci/golangci-lint-action@v6](https://github.com/golangci/golangci-lint-action) | Run golangci-lint (CD only). |
-| [softprops/action-gh-release@v2](https://github.com/softprops/action-gh-release) | Upload the built binary to the GitHub Release (CD only). |
+## Example CI preflight command
+
+```bash
+./envcheck \
+  --required-env DB_HOST,DB_PORT,REDIS_ADDR \
+  --check-http https://internal-api.example.com/health \
+  --check-tcp redis.example.com:6379 \
+  --timeout 2s
+```

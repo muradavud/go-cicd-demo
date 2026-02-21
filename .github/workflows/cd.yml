@@ -30,11 +30,18 @@ jobs:
         env:
           GOOS: linux
           GOARCH: amd64
-        run: go build -o go-cicd-demo .
+        run: |
+          go build \
+            -ldflags="
+              -X github.com/muradavud/go-cicd-demo/internal/version.Version=${{ github.ref_name }}
+              -X github.com/muradavud/go-cicd-demo/internal/version.Commit=${{ github.sha }}
+              -X github.com/muradavud/go-cicd-demo/internal/version.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            -o envcheck-linux-amd64 \
+            ./cmd/envcheck
 
       - name: Upload to Release
         uses: softprops/action-gh-release@v2.5.0
         with:
-          files: go-cicd-demo
+          files: envcheck-linux-amd64
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
