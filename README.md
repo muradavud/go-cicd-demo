@@ -58,23 +58,26 @@ Repeatable checks and custom timeout:
 **File:** `.github/workflows/ci.yml`  
 **Trigger:** push to `main`
 
-CI executes:
+Steps:
 
-1. `go build ./...`
-2. `go test ./...`
+1. **Checkout** — `actions/checkout@v6.0.2` checks out the repo.
+2. **Setup Go** — `actions/setup-go@v6.2.0` installs Go 1.25.
+3. **Build** — `go build ./...`
+4. **Test** — `go test ./...`
 
 ## CD workflow
 
 **File:** `.github/workflows/cd.yml`  
 **Trigger:** GitHub Release created
 
-CD executes:
+Steps:
 
-1. `golangci-lint`
-2. `go test ./...`
-3. Build `envcheck-linux-amd64` from `./cmd/envcheck`
-4. Inject version, commit, and build timestamp via `-ldflags`
-5. Upload the binary to the release with `softprops/action-gh-release`
+1. **Checkout** — `actions/checkout@v6.0.2` checks out the repo (at the release tag).
+2. **Setup Go** — `actions/setup-go@v6.2.0` installs Go 1.25.
+3. **Run golangci-lint** — `golangci/golangci-lint-action@v9.2.0` runs the linter (config: `.golangci.yml`).
+4. **Test** — `go test ./...`
+5. **Build** — Build `envcheck-linux-amd64` from `./cmd/envcheck` with `-ldflags` for version, commit, and build date.
+6. **Upload to Release** — `softprops/action-gh-release@v2.5.0` attaches the binary to the release.
 
 ## Example CI preflight command
 
